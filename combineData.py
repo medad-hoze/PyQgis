@@ -5,7 +5,7 @@ from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction,QMessageBox
 
 
-from qgis.core import QgsVectorLayer,QgsFeatureRequest,QgsVectorFileWriter,QgsFieldProxyModel
+from qgis.core import QgsVectorLayer,QgsFeatureRequest,QgsVectorFileWriter
 import os
 import pandas as pd
 import processing
@@ -188,8 +188,6 @@ class Combine_Data:
             self.first_start = False
             self.dlg = Combine_DataDialog()
 
-            # self.dlg.gush.setFilters(QgsFieldProxyModel.String)
-
 
         self.dlg.show()
         result = self.dlg.exec_()
@@ -198,9 +196,6 @@ class Combine_Data:
             # layer_path     = r"C:\Users\Administrator\Desktop\medad\python\Work\for_dariel\Data\sub_gush_all.shp"
             # mun_path       = r"C:\Users\Administrator\Desktop\medad\python\Work\for_dariel\Data\muni_il.shp"
             # csv_path       = r"C:\Users\Administrator\Desktop\medad\python\Work\for_dariel\files\2021-07.csv"
-            filter_path    = r'C:\Users\Administrator\Desktop\New folder (2)\filter_gush.shp'
-            spatial_merge  = r'C:\Users\Administrator\Desktop\New folder (2)\spatial_merge.shp'
-            out_put        = r'C:\Users\Administrator\Desktop\New folder (2)\fin.csv'
 
             lyr_gush   = self.dlg.btn_gush.currentLayer()
             layer_path = str(lyr_gush.dataProvider().dataSourceUri())
@@ -214,9 +209,13 @@ class Combine_Data:
             csv_date   = os.path.basename(csv_path)
             folder     = createFolder(r'C:\temp')
 
-            filter_path   = folder + '\\' + 'filter_gush.shp'
-            spatial_merge = folder + '\\' + 'spatial_merge.shp'
-            out_put       = folder + '\\' + 'Result_' + csv_date
+            filter_path   = folder + '\\' + 'filter_gush4.shp'
+            spatial_merge = folder + '\\' + 'spatial_merge4.shp'
+
+
+            out_put = self.dlg.lineEdit.text()
+            if not out_put: 
+                out_put       = folder + '\\' + 'Result_' + csv_date
 
 
             #QMessageBox.information(self.dlg, "Message", str(lyr_gush.sourceName()))
@@ -228,6 +227,9 @@ class Combine_Data:
             spatial_join        (filter_path,mun_path,spatial_merge,["FIRST_Nafa","Sug_Muni","Muni_Heb","FIRST_Nafa","Sug_Muni","Muni_Heb"])
 
             merge_lyr   = QgsVectorLayer(spatial_merge, "filter_path", "ogr")
+
+            # merge_lyr.setProviderEncoding(u'UTF-8')
+            # merge_lyr.dataProvider().setEncoding(u'UTF-8')
 
             dict_1  = dict_()
             data    = []
