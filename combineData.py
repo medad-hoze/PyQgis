@@ -147,20 +147,48 @@ class Combine_Data:
             return out_put
             
             
-        def spatial_join(filter_path,mun_path,fnout,fields_to_copy = []):
-            processing.run("native:joinbynearest",\
-            {'INPUT':filter_path,\
-            'INPUT_2':mun_path,\
-            'FIELDS_TO_COPY':fields_to_copy,\
-            'DISCARD_NONMATCHING':True,\
-            'PREFIX':'',\
-            'NEIGHBORS':1,\
-            'MAX_DISTANCE':0,\
-            'OUTPUT':fnout})
+        def spatial_join(filter_path,mun_path,fnout = '',fields_to_copy = []):
+
+            # processing.run("native:joinbynearest",\
+            # {'INPUT':filter_path,\
+            # 'INPUT_2':mun_path,\
+            # 'FIELDS_TO_COPY':fields_to_copy,\
+            # 'DISCARD_NONMATCHING':True,\
+            # 'PREFIX':'',\
+            # 'NEIGHBORS':1,\
+            # 'MAX_DISTANCE':2,\
+            # 'OUTPUT':fnout})
 
             # iface.addVectorLayer(fnout, '', 'ogr')
-            
-            return fnout
+            # data = Filter_data_from_layers(fnout)
+
+            # alg_params = {
+            #     'DISCARD_NONMATCHING': True,
+            #     'INPUT': filter_path,
+            #     'JOIN': mun_path,
+            #     'JOIN_FIELDS': [''],
+            #     'METHOD': 0,
+            #     'PREDICATE': [0],
+            #     'PREFIX': '',
+            #     'OUTPUT': fnout
+            # }
+
+            # processing.run('native:joinattributesbylocation', alg_params)
+            # data = Filter_data_from_layers(fnout)
+
+
+            filter_path = QgsVectorLayer(filter_path, "polygon", "ogr")
+            mun_path    = QgsVectorLayer(mun_path   , "polygon", "ogr")
+
+            data = []
+            for gush in filter_path.getFeatures():
+                for muni in mun_path.getFeatures():
+                    geom = muni.geometry().intersection(gush.geometry())
+                    if geom.area() > 100:
+                        data.append([gush['GUSH_NUM'],gush['GUSH_SUFFI'],gush['STATUS_TEX'],\
+                            muni["SETTEL_NAM"],muni["Sug_Muni"],muni['Muni_Heb']])
+
+            return data
 
 
         def createFolder(dic):
@@ -173,14 +201,41 @@ class Combine_Data:
             
         def Get_Name_to_None(REG_MUN_NA,REG_MUN_NAME):
             return REG_MUN_NA if REG_MUN_NA != u' ' else REG_MUN_NAME
+
+        def select_by_location(muni,filter_,out_put):
+
+            muni    = QgsVectorLayer(muni, "polygon", "ogr")
+            filter_ = QgsVectorLayer(filter_, "polygon", "ogr")
+
+            processing.run("native:selectbylocation", {'INPUT':muni,'PREDICATE':[0],'INTERSECT':filter_,'METHOD':0})
+            writer = QgsVectorFileWriter.writeAsVectorFormat(muni, out_put, 'utf-8', \
+            driverName='ESRI Shapefile', onlySelected=True)
+
+            return out_put
             
             
         def dict_():
             dict_1 = {'TALAR_ID':'מספר_תלר','TALAR_NUM':'מספר_תצר','TALAR_YEAR':'שנת_תצר','GUSH_NUM':'גוש','MUNI_HEB':'גבולות_שיפוט',\
-                    'REG_MUN_NA':'ועדה','SETL_NAME':'שם_ישוב','GUSH_SUFFIX':'תת_גוש','DESCRIPTION':'סטאטוס_תצר','GUSH_STATUS':'סטאטוס_גוש',\
-                    'LOCALITY_NAME':'שם_ישוב','REG_MUN_NAME':'שם_אזור_מונציפלי','SETL_NAME':'שם_ישוב','NAME_HEB':'שם_בעברית','ORDERER':'מזמין_עבודה',\
-                    'NAFA1':'נפה','SUG_MUNI':'סוג_מוניציפאלי','FIRST_Nafa':'נפה','Muni_Heb':'גבולות_שיפוט'}
+                    'REG_MUN_NA':'ועדה','SETL_NAME':'שם_ישוב','GUSH_SUFFIX':'תת_גוש','DESCRIPTION':'סטאטוס_תצר','STATUS_TEX':'סטאטוס_גוש',\
+                    'SETTEL_NAM':'שם_ישוב','REG_MUN_NAME':'שם_אזור_מונציפלי','SETL_NAME':'שם_ישוב','NAME_HEB':'שם_בעברית','ORDERER':'מזמין_עבודה',\
+                    'NAFA1':'נפה','Sug_Muni':'סוג_מוניציפאלי','FIRST_Nafa':'נפה','Muni_Heb':'גבולות_שיפוט'}
             return dict_1
+
+        def Filter_data_from_layers(spatial_merge):
+            merge_lyr   = QgsVectorLayer(spatial_merge, "filter_path", "ogr")
+
+            merge_lyr.setProviderEncoding(u'C-1255')
+            merge_lyr.dataProvider().setEncoding(u'C-1255')
+
+            data    = []
+            request = QgsFeatureRequest()
+            request.setFilterExpression("\"GUSH_NUM\" in ("+list_to_filter+")")
+
+            data = [[lyr['GUSH_NUM'],lyr['GUSH_SUFFI'],lyr["STATUS_TEX"],\
+                    lyr["SETTEL_NAM"],lyr["Sug_Muni"],lyr["Muni_Heb"]]\
+                    for lyr in merge_lyr.getFeatures(request)]
+            return data
+
 
         """Run method that performs all the real work"""
 
@@ -210,6 +265,7 @@ class Combine_Data:
             folder     = createFolder(r'C:\temp')
 
             filter_path   = folder + '\\' + 'filter_gush4.shp'
+            muni_by_loc   = folder + '\\' + 'muni_by_loc.shp'
             spatial_merge = folder + '\\' + 'spatial_merge4.shp'
 
 
@@ -223,24 +279,14 @@ class Combine_Data:
 
             df,list_to_filter = handle_csv(csv_path)
 
-            Filter_by_field_name(layer_path,list_to_filter,filter_path)
-            spatial_join        (filter_path,mun_path,spatial_merge,["FIRST_Nafa","Sug_Muni","Muni_Heb","FIRST_Nafa","Sug_Muni","Muni_Heb"])
+            Filter_by_field_name (layer_path,list_to_filter,filter_path)
+            select_by_location   (mun_path,filter_path,muni_by_loc)
 
-            merge_lyr   = QgsVectorLayer(spatial_merge, "filter_path", "ogr")
+            fields_to_keep = ["Sug_Muni","Muni_Heb",'SETTEL_NAM']
+            data           = spatial_join        (filter_path,muni_by_loc,spatial_merge,fields_to_keep)
 
-            # merge_lyr.setProviderEncoding(u'UTF-8')
-            # merge_lyr.dataProvider().setEncoding(u'UTF-8')
-
-            dict_1  = dict_()
-            data    = []
-            request = QgsFeatureRequest()
-            request.setFilterExpression("\"GUSH_NUM\" in ("+list_to_filter+")")
-                
-            data = [[lyr['GUSH_NUM'],lyr['GUSH_SUFFI'],lyr["REG_MUN_NA"],\
-                    lyr["FIRST_Nafa"],lyr["SUG_MUNI"],lyr["Muni_Heb"]]\
-                    for lyr in merge_lyr.getFeatures(request)]
-                    
-            df_shp               = pd.DataFrame(data = data, columns = ["GUSH_NUM","GUSH_SUFFIX","REG_MUN_NA","FIRST_Nafa","SUG_MUNI","Muni_Heb"])
+            dict_1               = dict_()
+            df_shp               = pd.DataFrame(data = data, columns = ["GUSH_NUM","GUSH_SUFFIX","STATUS_TEX","SETTEL_NAM","Sug_Muni","Muni_Heb"])
 
             df['GUSH_SUFFIX']     = df    ['GUSH_SUFFIX'].fillna(value=0)
             df_shp['GUSH_SUFFIX'] = df_shp['GUSH_SUFFIX'].fillna(value=0)
@@ -248,9 +294,6 @@ class Combine_Data:
             result                = df.merge(df_shp, how = 'left', left_on=['GUSH_NUM','GUSH_SUFFIX'], right_on=['GUSH_NUM','GUSH_SUFFIX'])
 
 
-            result['REG_MUN_NA'] = result[['REG_MUN_NA','REG_MUN_NAME']].apply(lambda x:Get_Name_to_None(x[0],x[1]),axis = 1)
-
-            result               = result.drop(['REG_MUN_NAME'], axis = 1)
 
             result               = result.rename(columns=dict_1)
 
