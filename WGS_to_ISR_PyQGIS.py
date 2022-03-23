@@ -1,5 +1,6 @@
 
-import math
+import math,os
+
 
 def Tran_WGS_to_ISR(longitude,latitude):
 
@@ -56,21 +57,62 @@ def Tran_WGS_to_ISR(longitude,latitude):
     return easting,northing
 
 
+def Add_fields(vr,fields,type_ = 'String'):
+
+    if type_ == 'String':
+        type_ = QVariant.String
+    else:
+        type_ = QVariant.Double
+
+    # name    = os.path.basename(path)
+    # layer   = QgsVectorLayer(path, name, "ogr")
+    caps    = vr.dataProvider().capabilities()
+
+    for field in fields:
+        if caps & QgsVectorDataProvider.AddAttributes:
+            vr.dataProvider().addAttributes([QgsField(field, type_)])
+            vr.updateFields()
+
+
+def Update_layer(vr,id_object,field_,new_value):
+    # layer  = QgsVectorLayer(path, 'layerMe', "ogr")
+    # pr     = layer.dataProvider()
+
+    flds   = vr.fields()
+    if vr.featureCount():
+        attrs = {flds.indexOf(field_):new_value}
+        pr.changeAttributeValues({id_object:attrs})
+
+
+def Get_attribute(path):
+    layer  = QgsVectorLayer(path, 'layerMe', "ogr")
+    flds   = layer.fields().names()
+    data   = []
+
+    for field in flds:
+        num = 1
+        for lyr in layer.getFeatures():
+            data.append([num,field, lyr.attribute(field)])
+            num+=1
+    return data
+
+
+def Get_fields_name_type(layer):
+    name_type = []
+    flds      = layer.fields()
+    for fld in flds:name_type.append([fld.name(),fld.typeName()])
+    return name_type
+
+
 path = r'C:\temp\building.shp'
 
-new_layer = r'C:\temp\new_layer.shp'
+layer            = QgsVectorLayer(path, "Cut_gush_", "ogr")
+name_type_fields = Get_fields_name_type(layer)
 
-layer           = QgsVectorLayer(path, "Cut_gush_", "ogr")
-
-road_type_index = layer.fields().indexFromName('JOIN_FID')
-
-print (road_type_index)
-
-    
-
+vl    = QgsVectorLayer(str('Polygon?crs='+'2039'), "polygon", "memory")
 for feature in layer.getFeatures():
+    print (feature)
     geometry = feature.geometry().asQPolygonF()
-    print (geometry)
     new_list = []
     for i in geometry:
         x,y = Tran_WGS_to_ISR(i.x(),i.y())
@@ -78,19 +120,22 @@ for feature in layer.getFeatures():
         new_list.append(point)
 
     polygon = QgsGeometry.fromPolygonXY([new_list])
-    print (polygon)
-
-    vl    = QgsVectorLayer(str('Polygon?crs='+'2039'), "polygon", "memory")
     pr    = vl.dataProvider()
     fet   = QgsFeature()
     fet.setGeometry(polygon)
     #fet.setAttributes(data_list)
     pr.addFeatures([fet])
 
-    vl.updateExtents()
+vl.updateExtents()
+    
 QgsProject.instance().addMapLayer(vl)
+
+
+
+for name_type in name_type_fields:Add_fields(vl,[name_type[0]],type_ = name_type[1])
+
+data = Get_attribute(path)
+print (data)
+for i in data: Update_layer(vl,i[0],i[1],i[2])
     
 
-#layer = QgsProject.instance().addMapLayer(layer)
-#for i in layer.fields():
-#    print (i)
