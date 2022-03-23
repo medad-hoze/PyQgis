@@ -76,7 +76,7 @@ def Add_fields(vr,fields,type_ = 'String'):
 
 def Update_layer(vr,id_object,field_,new_value):
     # layer  = QgsVectorLayer(path, 'layerMe', "ogr")
-    # pr     = layer.dataProvider()
+    pr     = vr.dataProvider()
 
     flds   = vr.fields()
     if vr.featureCount():
@@ -104,38 +104,123 @@ def Get_fields_name_type(layer):
     return name_type
 
 
+def WGS_ISR_polygon(path):
+
+    layer            = QgsVectorLayer(path, "polyLayer", "ogr")
+    name_type_fields = Get_fields_name_type(layer)
+
+    vl    = QgsVectorLayer(str('Polygon?crs='+'2039'), "polygon", "memory")
+    for feature in layer.getFeatures():
+        print (feature)
+        geometry = feature.geometry().asQPolygonF()
+        new_list = []
+        for i in geometry:
+            x,y = Tran_WGS_to_ISR(i.x(),i.y())
+            point = QgsPointXY(x,y)
+            new_list.append(point)
+
+        polygon = QgsGeometry.fromPolygonXY([new_list])
+        pr      = vl.dataProvider()
+        fet     = QgsFeature()
+        fet.setGeometry(polygon)
+        #fet.setAttributes(data_list)
+        pr.addFeatures([fet])
+
+    vl.updateExtents()
+        
+    QgsProject.instance().addMapLayer(vl)
+
+
+    for name_type in name_type_fields:Add_fields(vl,[name_type[0]],type_ = name_type[1])
+    data = Get_attribute(path)
+    for i in data: Update_layer(vl,i[0],i[1],i[2])
+
+
+def WGS_ISR_point(path):
+
+    layer            = QgsVectorLayer(path, "PointLayer", "ogr")
+    name_type_fields = Get_fields_name_type(layer)
+
+    vl    = QgsVectorLayer(str('Point?crs='+'2039'), "point", "memory")
+    for feature in layer.getFeatures():
+        geometry = feature.geometry()
+        point    = geometry.asPoint()
+        x,y      = Tran_WGS_to_ISR(point.x(),point.y())
+        geom_pnt = QgsPointXY(x,y)
+
+        point_g = QgsGeometry.fromPointXY(geom_pnt)
+
+        pr      = vl.dataProvider()
+        fet     = QgsFeature()
+
+        fet.setGeometry(point_g)
+        #fet.setAttributes(data_list)
+        pr.addFeatures([fet])
+    vl.updateExtents()
+    QgsProject.instance().addMapLayer(vl)
+
+
+    for name_type in name_type_fields:Add_fields(vl,[name_type[0]],type_ = name_type[1])
+    data = Get_attribute(path)
+    for i in data: Update_layer(vl,i[0],i[1],i[2])
+        
+
+
+def WGS_ISR_Line(path_line):
+    
+    layer  = QgsVectorLayer(path_line, "Cut_gush_", "ogr")
+    vl     = QgsVectorLayer(str('LineString?crs='+'2039'), "polyline", "memory")
+
+    for feature in layer.getFeatures():
+
+        pr      = vl.dataProvider()
+        fet     = QgsFeature()
+
+        geometry = feature.geometry().asMultiPolyline ()
+        
+        for i in geometry:
+            new_list = []
+            for j in i:
+                x,y = Tran_WGS_to_ISR(j.x(),j.y())
+                point = QgsPoint(x,y)
+                new_list.append(point)
+            print (len(new_list))
+
+        line    = QgsGeometry.fromPolyline(new_list)
+        fet.setGeometry(line)
+        #fet.setAttributes(data_list)
+        pr.addFeatures([fet])
+
+    vl.updateExtents()
+        
+    QgsProject.instance().addMapLayer(vl)
+
+
+    name_type_fields = Get_fields_name_type(layer)
+    for name_type in name_type_fields:Add_fields(vl,[name_type[0]],type_ = name_type[1])
+    data = Get_attribute(path)
+    for i in data: Update_layer(vl,i[0],i[1],i[2])
+
+
+def Main_WGS_TO_ISR(path):
+
+    layer            = QgsVectorLayer(path, "checkType", "ogr")
+    typeLayer = layer.wkbType()
+    print (typeLayer)
+
+    if typeLayer > 1:
+        WGS_ISR_polygon (path)
+    elif typeLayer == 1:
+        WGS_ISR_point   (path)
+    else:
+        WGS_ISR_Line    (path)
+
+
+
+
 path = r'C:\temp\building.shp'
 
-layer            = QgsVectorLayer(path, "Cut_gush_", "ogr")
-name_type_fields = Get_fields_name_type(layer)
-
-vl    = QgsVectorLayer(str('Polygon?crs='+'2039'), "polygon", "memory")
-for feature in layer.getFeatures():
-    print (feature)
-    geometry = feature.geometry().asQPolygonF()
-    new_list = []
-    for i in geometry:
-        x,y = Tran_WGS_to_ISR(i.x(),i.y())
-        point = QgsPointXY(x,y)
-        new_list.append(point)
-
-    polygon = QgsGeometry.fromPolygonXY([new_list])
-    pr    = vl.dataProvider()
-    fet   = QgsFeature()
-    fet.setGeometry(polygon)
-    #fet.setAttributes(data_list)
-    pr.addFeatures([fet])
-
-vl.updateExtents()
-    
-QgsProject.instance().addMapLayer(vl)
+Main_WGS_TO_ISR (path)
 
 
-
-for name_type in name_type_fields:Add_fields(vl,[name_type[0]],type_ = name_type[1])
-
-data = Get_attribute(path)
-print (data)
-for i in data: Update_layer(vl,i[0],i[1],i[2])
-    
 
